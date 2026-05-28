@@ -1,0 +1,30 @@
+{
+  "date": "2026-05-28T18:14:06.827967+00:00",
+  "dry_run": true,
+  "bankroll": {
+    "current_mxn": 1000.0,
+    "initial_mxn": 1000.0,
+    "drawdown_pct": 0.0,
+    "stake_multiplier": 1.0,
+    "paused_until": null
+  },
+  "resolution_yesterday": {
+    "resolved": 0,
+    "won": 0,
+    "lost": 0,
+    "void": 0,
+    "pnl_mxn": 0.0
+  },
+  "model_global": {
+    "model_accuracy_pct": 0.0,
+    "picks_resolved": 0,
+    "picks_won": 0,
+    "consecutive_losses": 0,
+    "stake_multiplier": 1.0,
+    "paused_until": null
+  },
+  "today_matches": [],
+  "picks_generated": 0,
+  "picks": [],
+  "place_results": []
+}
