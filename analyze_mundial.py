@@ -174,6 +174,40 @@ def build_match_context(match: md.Match) -> dict:
 
 OPENAI_AVAILABLE = bool(os.environ.get("OPENAI_API_KEY"))
 
+def _format_standings_block(group_code: str) -> str:
+    """
+    Formatea tabla del grupo para inyectar en el prompt del veto.
+    Retorna '' si no hay datos (J1 aún no jugada o standings no disponibles).
+    """
+    if not group_code:
+        return ""
+    try:
+        all_standings = md.get_standings()
+        group_table = all_standings.get(group_code.upper(), [])
+        if not group_table:
+            return ""
+        lines = [f"\n📊 TABLA ACTUAL GRUPO {group_code.upper()} (antes de este partido):"]
+        for row in group_table:
+            team = row.get("team", {}).get("name", "?")
+            pts = row.get("points", 0)
+            played = row.get("playedGames", 0)
+            gd = row.get("goalDifference", 0)
+            gf = row.get("goalsFor", 0)
+            ga = row.get("goalsAgainst", 0)
+            pos = row.get("position", "?")
+            lines.append(
+                f"  {pos}. {team:20s}  J:{played}  Pts:{pts}  GD:{gd:+d}  GF:{gf}  GC:{ga}"
+            )
+        lines.append(
+            "\nUSA esta tabla para razonar: ¿alguien ya clasificó? ¿alguien ya está eliminado? "
+            "¿J3 simultánea (anti-pacto)? "
+            "Considerando pts y GD, ¿qué resultado les conviene a cada equipo hoy?"
+        )
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
 def qualitative_veto(match: md.Match, pick_market: str, pick_label: str,
                      edge_pct: float) -> tuple[bool, str]:
     """
@@ -181,6 +215,11 @@ def qualitative_veto(match: md.Match, pick_market: str, pick_label: str,
     motivación, noticias ≤48h. Returns (passes, reason).
 
     Si OPENAI_API_KEY no está, retorna (True, "skipped") para no bloquear.
+
+    Para J2+ inyecta la tabla del grupo (de football-data.org) para que
+    OpenAI pueda razonar sobre motivación y escenarios de clasificación.
+    J3 es la jornada más peligrosa (posibles pactos implícitos) — en J3
+    el threshold de veto se eleva (passes=false más fácil).
     """
     if not OPENAI_AVAILABLE:
         return True, "veto-skipped (no OPENAI_API_KEY)"
@@ -188,6 +227,21 @@ def qualitative_veto(match: md.Match, pick_market: str, pick_label: str,
     try:
         from openai import OpenAI
         client = OpenAI()
+
+        # Bloque de tabla para J2+
+        standings_block = ""
+        if match.matchday and match.matchday >= 2 and match.group:
+            standings_block = _format_standings_block(match.group)
+
+        # Aviso extra para J3 (fase más traicionera del torneo)
+        j3_warning = ""
+        if match.matchday == 3:
+            j3_warning = (
+                "\n⚠️  JORNADA 3 (ÚLTIMA DEL GRUPO): Las dos jornadas se juegan SIMULTÁNEAMENTE. "
+                "Esto reduce el riesgo de pactos, PERO revisa escrupulosamente si algún equipo "
+                "YA está clasificado (posibles rotaciones masivas) o YA está eliminado (resultados inesperados). "
+                "En J3 el umbral de veto es MÁS ESTRICTO — pasa a passes=false ante cualquier duda de motivación."
+            )
 
         prompt = f"""Eres analista deportivo senior evaluando una apuesta en el MUNDIAL FIFA 2026.
 
@@ -199,6 +253,7 @@ KICKOFF UTC: {match.utc_kickoff}
 
 PICK PROPUESTO: {pick_label} (mercado {pick_market})
 EDGE DEL MODELO: +{edge_pct:.1f}%
+{standings_block}{j3_warning}
 
 CONTEXTO: api-sports.io free no cubre 2026, así que tú eres la ÚNICA fuente
 de lineups y lesiones. Usa web_search agresivamente para verificar EN ORDEN:
@@ -206,7 +261,7 @@ de lineups y lesiones. Usa web_search agresivamente para verificar EN ORDEN:
 1. **LINEUPS confirmados** (búsqueda obligatoria: "{match.home_name} {match.away_name} lineup confirmed {match.utc_kickoff[:10]}"). ¿Falta el goleador top? ¿Rotaciones?
 2. **LESIONES y SUSPENSIONES** últimas 48h de ambos equipos.
 3. **Clima** previsto en la sede a la hora del partido (lluvia → menos goles; calor extremo → menos goles; altitud Azteca → más goles).
-4. **Motivación**: ¿algún equipo ya clasificó/eliminado? Si sí, esperan rotaciones.
+4. **MOTIVACIÓN** (crítico J2-J3): considerando la tabla del grupo arriba, ¿qué resultado le conviene a cada equipo? ¿Hay riesgo de no intensidad máxima?
 5. **Noticias** ≤48h: escándalos, problemas internos, decisiones tácticas anunciadas.
 
 Responde JSON ESTRICTO:
