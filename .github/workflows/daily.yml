@@ -1,0 +1,87 @@
+name: Mundial Bot - Daily Cron
+
+on:
+  schedule:
+    # 13:00 UTC = 08:00 CDT México (verano UTC-5 desde abril; CDT/CST varía)
+    # Durante el Mundial 2026 (junio-julio) México está en CDT = UTC-5 en gran parte;
+    # 13:00 UTC = 08:00 CDT. Si se requiere 8 AM CST puro (UTC-6) ajustar a 14:00.
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "DRY_RUN (true = no apuesta, solo notifica)"
+        required: false
+        default: "true"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Restore state cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            model_state.json
+            bankroll_state.json
+            bets_history.json
+            cache/
+          key: mundial-state-${{ github.run_number }}
+          restore-keys: |
+            mundial-state-
+
+      - name: Run mundial_runner
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          BANKROLL_INITIAL: "1000"
+          KELLY_DIV: "5"
+          EDGE_MIN_PCT: "6"
+          EDGE_MAX_PCT: "35"
+          MAX_PICKS_PER_DAY: "3"
+          SESSION_BUDGET_PCT: "25"
+          STOP_LOSS_PCT: "30"
+          SOFT_PAUSE_PCT: "15"
+          PYTHONIOENCODING: "utf-8"
+          # ── KILL-SWITCH: notificaciones APAGADAS, canal 'stdout' (solo logs) ──
+          # CallMeBot está BLOQUEADO en notify.py — exclusivo del playdoit-bot.
+          # Cambiar a NOTIFICATIONS_ENABLED="true" y CHANNEL="telegram" solo cuando
+          # JP haya confirmado canal+horario+formato finales y creado el bot en @BotFather.
+          NOTIFICATIONS_ENABLED: "false"
+          CHANNEL: "stdout"
+          # Secrets — SEPARADOS del playdoit-bot:
+          # PlayDoit credentials se comparten (misma cuenta)
+          PLAYDOIT_USER: ${{ secrets.PLAYDOIT_USER }}
+          PLAYDOIT_PASS: ${{ secrets.PLAYDOIT_PASS }}
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          API_SPORTS_KEY: ${{ secrets.API_SPORTS_KEY }}
+          # Telegram bot DEDICADO del mundial-bot — NO CallMeBot/WhatsApp
+          # (CallMeBot/WhatsApp es exclusivo del playdoit-bot para evitar cruce)
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python mundial_runner.py
+
+      - name: Upload artifacts (state + logs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mundial-state-run-${{ github.run_number }}
+          path: |
+            model_state.json
+            bankroll_state.json
+            bets_history.json
+          retention-days: 90
