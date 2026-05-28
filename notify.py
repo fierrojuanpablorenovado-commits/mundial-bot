@@ -1,16 +1,24 @@
 """
 notify.py — Notificación del mundial-bot
 
-KILL-SWITCH GLOBAL: NOTIFICATIONS_ENABLED env var
-  - Default: false (NO envía nada, solo loguea a stdout)
-  - Solo se enciende cuando JP confirme:
-      1. Canal final (Telegram dedicado, CallMeBot con prefijo nuevo, etc.)
-      2. Horario final del cron
-      3. Formato del mensaje aprobado
+═══════════════════════════════════════════════════════════════════════════
+REGLA DURA (instrucción explícita de JP, 28-may-2026):
+  El mundial-bot NO puede enviar nada a CallMeBot bajo ninguna circunstancia
+  hasta que JP defina canal + horario + formato finales.
 
-Hasta entonces, el bot corre el pipeline completo SILENCIOSO. Los picks
-y el estado se persisten en bets_history.json y model_state.json para que
-JP pueda revisar la calidad del modelo sin recibir notificaciones de prueba.
+Por eso esta versión:
+  1. NO importa nada relacionado con CallMeBot
+  2. NO tiene función para enviar a CallMeBot
+  3. NO acepta "callmebot" como CHANNEL
+  4. Kill-switch global NOTIFICATIONS_ENABLED=false por default
+
+Si un futuro contributor (humano o IA) trata de reintroducir CallMeBot aquí,
+revisar primero memoria/project_mundial_bot.md y confirmar con JP.
+═══════════════════════════════════════════════════════════════════════════
+
+Canales soportados (cuando JP encienda el switch):
+  - 'stdout' (default temporal): solo loguea, no envía a ningún lado
+  - 'telegram': cuando JP cree bot en @BotFather y pase TOKEN+CHAT_ID
 """
 from __future__ import annotations
 import os
@@ -18,18 +26,16 @@ import requests
 
 
 NOTIFICATIONS_ENABLED = os.environ.get("NOTIFICATIONS_ENABLED", "false").lower() in ("1", "true", "yes")
+CHANNEL = os.environ.get("CHANNEL", "stdout").lower()
+
+# Canales VÁLIDOS — CallMeBot NO está en esta lista a propósito
+ALLOWED_CHANNELS = {"stdout", "telegram"}
 
 
 def send(message: str) -> bool:
     """
     Envía notificación SOLO si NOTIFICATIONS_ENABLED=true.
-    Por default está APAGADO hasta que JP defina canal+horario+formato finales.
-
-    Canales soportados (se elige por env CHANNEL):
-      - 'telegram' (default): requiere TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
-      - 'callmebot': requiere CALLMEBOT_PHONE + CALLMEBOT_APIKEY (NO recomendado
-        para mundial-bot — comparte canal con playdoit-bot)
-      - 'stdout': solo imprime, no envía (igual que NOTIFICATIONS_ENABLED=false)
+    Por default está APAGADO. Aún encendido, NUNCA va a CallMeBot.
     """
     if not NOTIFICATIONS_ENABLED:
         print("[notify] APAGADO (NOTIFICATIONS_ENABLED=false) — mensaje no enviado")
@@ -39,25 +45,26 @@ def send(message: str) -> bool:
         print("─" * 60)
         return False
 
-    channel = os.environ.get("CHANNEL", "telegram").lower()
+    if CHANNEL not in ALLOWED_CHANNELS:
+        print(f"[notify] CHANNEL='{CHANNEL}' NO permitido. "
+              f"Válidos: {sorted(ALLOWED_CHANNELS)}. Mensaje no enviado.")
+        return False
 
-    if channel == "telegram":
-        return _send_telegram(message)
-    elif channel == "callmebot":
-        return _send_callmebot(message)
-    elif channel == "stdout":
+    if CHANNEL == "stdout":
         print(message)
         return True
-    else:
-        print(f"[notify] CHANNEL desconocido: {channel}")
-        return False
+
+    if CHANNEL == "telegram":
+        return _send_telegram(message)
+
+    return False
 
 
 def _send_telegram(message: str) -> bool:
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
     if not token or not chat_id:
-        print("[notify] Telegram: sin TOKEN/CHAT_ID")
+        print("[notify] Telegram: sin TOKEN/CHAT_ID — mensaje no enviado")
         return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
@@ -74,22 +81,8 @@ def _send_telegram(message: str) -> bool:
         return False
 
 
-def _send_callmebot(message: str) -> bool:
-    import urllib.parse
-    phone = os.environ.get("CALLMEBOT_PHONE", "")
-    apikey = os.environ.get("CALLMEBOT_APIKEY", "")
-    if not phone or not apikey:
-        print("[notify] CallMeBot: sin credenciales")
-        return False
-    url = (f"https://api.callmebot.com/whatsapp.php"
-           f"?phone={phone}&text={urllib.parse.quote(message)}&apikey={apikey}")
-    try:
-        r = requests.get(url, timeout=15)
-        return r.status_code == 200 and "Message queued" in r.text
-    except Exception:
-        return False
-
-
 if __name__ == "__main__":
     print(f"NOTIFICATIONS_ENABLED = {NOTIFICATIONS_ENABLED}")
-    send("Test mensaje. Si lo ves arriba en consola, el kill-switch está apagando el envío real.")
+    print(f"CHANNEL = {CHANNEL!r} (allowed: {sorted(ALLOWED_CHANNELS)})")
+    print()
+    send("Test mensaje. Si NOTIFICATIONS_ENABLED=false, esto no se envía.")
