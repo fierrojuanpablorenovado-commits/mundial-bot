@@ -24,7 +24,7 @@ import bankroll
 import learning_tracker as lt
 import analyze_mundial as am
 import mundial_data as md
-import whatsapp
+import notify
 
 
 DRY_RUN = os.environ.get("DRY_RUN", "true").lower() in ("1", "true", "yes")
@@ -113,7 +113,7 @@ def main() -> int:
                f"Bankroll: ${bk['current_mxn']:.0f} MXN "
                f"(de ${bk['initial_mxn']:.0f}).")
         print(msg)
-        whatsapp.send(msg)
+        notify.send(msg)
         return 0
 
     # Día CDT México (UTC-6) actual
@@ -131,7 +131,7 @@ def main() -> int:
         err = f"🏆 MUNDIAL IA | ERROR\nFallo en analyze_day:\n{type(e).__name__}: {str(e)[:200]}"
         print(err)
         traceback.print_exc()
-        whatsapp.send(err)
+        notify.send(err)
         return 1
 
     # TODO real-bet flow: si no DRY_RUN, llamar altenar_api.place_bet por pick
@@ -139,7 +139,7 @@ def main() -> int:
     _save_picks_history(picks)
     msg = _format_whatsapp(picks, today_label, bk)
     print("\n" + msg)
-    whatsapp.send(msg)
+    notify.send(msg)
 
     return 0
 
