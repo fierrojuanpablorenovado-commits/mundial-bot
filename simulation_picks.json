@@ -1,0 +1,149 @@
+{
+  "generated_at": "2026-05-28T16:34:51.297448+00:00",
+  "range": {
+    "start": "2026-06-11",
+    "end": "2026-06-15"
+  },
+  "daily_summary": [
+    {
+      "date": "2026-06-11",
+      "n_picks": 2,
+      "total_stake": 77.0,
+      "avg_edge_pct": 17.86
+    },
+    {
+      "date": "2026-06-12",
+      "n_picks": 1,
+      "total_stake": 24.0,
+      "avg_edge_pct": 10.3
+    },
+    {
+      "date": "2026-06-13",
+      "n_picks": 1,
+      "total_stake": 44.0,
+      "avg_edge_pct": 11.07
+    },
+    {
+      "date": "2026-06-14",
+      "n_picks": 2,
+      "total_stake": 108.0,
+      "avg_edge_pct": 17.9
+    },
+    {
+      "date": "2026-06-15",
+      "n_picks": 3,
+      "total_stake": 147.0,
+      "avg_edge_pct": 19.81
+    }
+  ],
+  "picks": [
+    {
+      "date": "2026-06-11",
+      "match": "Mexico vs South Africa",
+      "venue": "Estadio Azteca",
+      "market": "goles_u25",
+      "label": "Under 2.5 goles",
+      "odds": 1.95,
+      "edge_pct": 28.84833736396617,
+      "stake_mxn": 61.0,
+      "confidence": "ALTA",
+      "model_prob": 0.6607607044305959
+    },
+    {
+      "date": "2026-06-11",
+      "match": "South Korea vs Czechia",
+      "venue": "Estadio Akron",
+      "market": "goles_o25",
+      "label": "Over 2.5 goles",
+      "odds": 1.85,
+      "edge_pct": 6.870788236546654,
+      "stake_mxn": 16.0,
+      "confidence": "BAJA",
+      "model_prob": 0.5776799364137656
+    },
+    {
+      "date": "2026-06-12",
+      "match": "Canada vs Bosnia-Herzegovina",
+      "venue": "BMO Field",
+      "market": "goles_o25",
+      "label": "Over 2.5 goles",
+      "odds": 1.85,
+      "edge_pct": 10.296294669579398,
+      "stake_mxn": 24.0,
+      "confidence": "MEDIA",
+      "model_prob": 0.5961961874031317
+    },
+    {
+      "date": "2026-06-13",
+      "match": "Australia vs Turkey",
+      "venue": "BC Place",
+      "market": "goles_u35",
+      "label": "Under 3.5 goles",
+      "odds": 1.5,
+      "edge_pct": 11.07460834421956,
+      "stake_mxn": 44.0,
+      "confidence": "MEDIA",
+      "model_prob": 0.7404973889614637
+    },
+    {
+      "date": "2026-06-14",
+      "match": "Germany vs Curaçao",
+      "venue": "NRG Stadium",
+      "market": "goles_o25",
+      "label": "Over 2.5 goles",
+      "odds": 1.85,
+      "edge_pct": 21.624976590194088,
+      "stake_mxn": 51.0,
+      "confidence": "ALTA",
+      "model_prob": 0.6574323058929409
+    },
+    {
+      "date": "2026-06-14",
+      "match": "Ivory Coast vs Ecuador",
+      "venue": "Lincoln Financial Field",
+      "market": "goles_u35",
+      "label": "Under 3.5 goles",
+      "odds": 1.5,
+      "edge_pct": 14.170629049614124,
+      "stake_mxn": 57.0,
+      "confidence": "ALTA",
+      "model_prob": 0.7611375269974274
+    },
+    {
+      "date": "2026-06-15",
+      "match": "Belgium vs Egypt",
+      "venue": "Lumen Field",
+      "market": "goles_u25",
+      "label": "Under 2.5 goles",
+      "odds": 1.95,
+      "edge_pct": 32.40275329246134,
+      "stake_mxn": 68.0,
+      "confidence": "ALTA",
+      "model_prob": 0.6789884784228788
+    },
+    {
+      "date": "2026-06-15",
+      "match": "Spain vs Cape Verde Islands",
+      "venue": "Mercedes-Benz Stadium",
+      "market": "goles_o25",
+      "label": "Over 2.5 goles",
+      "odds": 1.85,
+      "edge_pct": 17.806236463654468,
+      "stake_mxn": 42.0,
+      "confidence": "ALTA",
+      "model_prob": 0.6367904673711051
+    },
+    {
+      "date": "2026-06-15",
+      "match": "Iran vs New Zealand",
+      "venue": null,
+      "market": "goles_u35",
+      "label": "Under 3.5 goles",
+      "odds": 1.5,
+      "edge_pct": 9.211568695067406,
+      "stake_mxn": 37.0,
+      "confidence": "MEDIA",
+      "model_prob": 0.7280771246337827
+    }
+  ]
+}

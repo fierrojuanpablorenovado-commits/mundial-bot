@@ -350,13 +350,16 @@ def analyze_day(date_local: Optional[datetime] = None,
             )
             candidates.append((pick, m.edge_pct))
 
-    # Ordenar por edge descendente y tomar top N
+    # Ordenar por edge descendente y tomar top N (max 1 pick por partido)
     candidates.sort(key=lambda x: x[1], reverse=True)
     selected: list[Pick] = []
+    selected_match_ids: set[int] = set()
 
     for pick, _ in candidates:
         if len(selected) >= MAX_PICKS_PER_DAY:
             break
+        if pick.fd_match_id in selected_match_ids:
+            continue  # diversificación: 1 pick por partido
 
         # Veto cualitativo OpenAI (solo para los top candidatos para ahorrar tokens)
         match = next(m for m in matches if m.fd_id == pick.fd_match_id)
@@ -367,6 +370,7 @@ def analyze_day(date_local: Optional[datetime] = None,
             continue
 
         selected.append(pick)
+        selected_match_ids.add(pick.fd_match_id)
         print(f"  ✅ PICK: {pick.home} vs {pick.away} {pick.label} "
               f"edge +{pick.edge_pct:.1f}% stake ${pick.stake_mxn:.0f}")
 

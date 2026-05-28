@@ -21,6 +21,8 @@ from typing import Optional
 
 import requests
 
+import venue_calendar
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Config
 # ─────────────────────────────────────────────────────────────────────────────
@@ -174,22 +176,33 @@ class Match:
 
 def _parse_fd_match(m: dict) -> Match:
     score = m.get("score", {}).get("fullTime", {}) or {}
+    home_name = m["homeTeam"]["name"] or ""
+    away_name = m["awayTeam"]["name"] or ""
+    utc_date = m["utcDate"]
+    date_str = utc_date[:10]
+
+    # football-data NO devuelve venue → resolver vía thesportsdb + fallback host country
+    venue = m.get("venue")
+    if not venue:
+        host_country = m.get("area", {}).get("name")
+        venue = venue_calendar.resolve_venue(date_str, home_name, away_name, host_country)
+
     return Match(
         fd_id=m["id"],
-        utc_kickoff=m["utcDate"],
+        utc_kickoff=utc_date,
         matchday=m.get("matchday") or 0,
         stage=m.get("stage", ""),
         group=m.get("group"),
         home_id=m["homeTeam"]["id"],
-        home_name=m["homeTeam"]["name"] or "",
+        home_name=home_name,
         home_tla=m["homeTeam"].get("tla") or "",
         away_id=m["awayTeam"]["id"],
-        away_name=m["awayTeam"]["name"] or "",
+        away_name=away_name,
         away_tla=m["awayTeam"].get("tla") or "",
         status=m["status"],
         home_goals=score.get("home"),
         away_goals=score.get("away"),
-        venue=m.get("venue"),
+        venue=venue,
     )
 
 
