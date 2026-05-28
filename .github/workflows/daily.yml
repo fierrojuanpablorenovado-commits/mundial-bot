@@ -12,6 +12,10 @@ on:
         description: "DRY_RUN (true = no apuesta, solo notifica)"
         required: false
         default: "true"
+      target_date:
+        description: "Fecha a simular YYYY-MM-DD (vacío = hoy). Ej: 2026-06-11"
+        required: false
+        default: ""
 
 jobs:
   run:
@@ -73,6 +77,7 @@ jobs:
           # (CallMeBot/WhatsApp es exclusivo del playdoit-bot para evitar cruce)
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TARGET_DATE: ${{ github.event.inputs.target_date || '' }}
         run: python mundial_runner.py
 
       - name: Upload artifacts (state + logs)

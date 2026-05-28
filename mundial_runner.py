@@ -41,6 +41,25 @@ BETS_HISTORY_FILE = Path(__file__).parent / "bets_history.json"
 DAILY_REPORT_FILE = Path(__file__).parent / "daily_report.json"
 
 
+def _resolve_target_date() -> datetime:
+    """
+    Devuelve la fecha objetivo en CDT (UTC-6 durante el Mundial).
+    Si TARGET_DATE (YYYY-MM-DD) está seteada en env → usa esa fecha.
+    Si no → hoy CDT = now(UTC) - 6h (correcto para cron de 13:00 UTC = 8 AM CDT).
+    """
+    raw = os.environ.get("TARGET_DATE", "").strip()
+    if raw:
+        try:
+            d = datetime.strptime(raw, "%Y-%m-%d")
+            # Interpretar como medianoche CDT (UTC-6); zona no crítica — solo buscamos partidos del día
+            target = d.replace(hour=12, tzinfo=timezone.utc)  # mediodía UTC → mañana CDT
+            print(f"[runner] ⚙️  TARGET_DATE override: {raw}")
+            return target
+        except ValueError:
+            print(f"[runner] ⚠️  TARGET_DATE inválida '{raw}' — usando hoy CDT")
+    return datetime.now(timezone.utc) - timedelta(hours=6)
+
+
 def _load_bets_history() -> list:
     if not BETS_HISTORY_FILE.exists():
         return []
@@ -245,7 +264,7 @@ def main() -> int:
         state = lt.load_state()
 
     # Paso 3-4: analizar día con odds reales
-    today_cdt = datetime.now(timezone.utc) - timedelta(hours=6)
+    today_cdt = _resolve_target_date()
     today_label = today_cdt.strftime("%a %d-%b").lower()
 
     print(f"\n[PASO 3-4] Analizando día {today_cdt.date()}...")
