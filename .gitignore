@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.log
+debug_*.png
+debug_*.html
+*.tmp
+.DS_Store
+model_state.json
+learning_log.json
+bets_history.json
+bankroll_state.json
+cache/
