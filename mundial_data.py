@@ -112,7 +112,12 @@ AS_BASE = "https://v3.football.api-sports.io"
 
 def as_get(path: str, params: Optional[dict] = None, ttl_key: str = "fixtures",
            force: bool = False) -> dict:
-    """GET api-sports.io con cache."""
+    """
+    GET api-sports.io con cache.
+    NOTA: el plan Free NO cubre season 2026 (solo 2022-2024). Cualquier llamada
+    al Mundial 2026 retorna 200 con response=[] y errors.plan poblado.
+    El código asume eso y degrada graceful — no levanta excepción.
+    """
     params = params or {}
     qs = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
     cache_key = f"as_{path}_{qs}"
@@ -124,11 +129,15 @@ def as_get(path: str, params: Optional[dict] = None, ttl_key: str = "fixtures",
 
     headers = {"x-apisports-key": API_SPORTS_KEY}
     url = f"{AS_BASE}{path}"
-    r = requests.get(url, headers=headers, params=params, timeout=20)
-    r.raise_for_status()
-    data = r.json()
-    _write_cache(cache_key, data)
-    return data
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        _write_cache(cache_key, data)
+        return data
+    except Exception as e:
+        # Degrada silencioso — el plan Free no cubre 2026, retornamos shape vacío
+        return {"response": [], "errors": {"_local": str(e)}}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -272,6 +281,15 @@ def get_top_scorers() -> list[dict]:
         "league": API_SPORTS_LEAGUE_ID,
         "season": API_SPORTS_SEASON,
     }, "top_scorers")
+    return data.get("response", [])
+
+
+def get_injuries_for_fixture(api_sports_fixture_id: int) -> list[dict]:
+    """
+    Lesionados de los 2 equipos de un fixture. Devuelve [] si no hay datos.
+    Cada entry: { player: {name, type, reason}, team: {id, name} }
+    """
+    data = as_get("/injuries", {"fixture": api_sports_fixture_id}, "lineups")
     return data.get("response", [])
 
 

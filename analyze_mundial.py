@@ -36,6 +36,8 @@ from typing import Optional
 import mundial_data as md
 import learning_tracker as lt
 import stats_engine as se
+import venues
+import weather as wx
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -55,35 +57,115 @@ MIN_SAMPLE_FOR_PICK = 1   # En Mundial el sample es 0 en J1; nos apoyamos en pri
 # ─────────────────────────────────────────────────────────────────────────────
 
 def team_rating_from_state(state: dict, team_id: int,
-                            prior_atq: float = 1.4, prior_def: float = 1.2) -> se.TeamRating:
+                            team_name: str = "",
+                            context_mult: float = 1.0) -> se.TeamRating:
     """
     Construye TeamRating combinando:
-      - prior pre-Mundial (default 1.4/1.2 — equipo promedio)
-      - estado actual del modelo (attack_strength, defense_strength)
-      - penalización por fatiga
+      - state actual del learning_tracker (que ya tiene warm-start StatsBomb)
+      - context_mult: multiplicador externo (venue + weather + lineups + lesiones)
+      - penalización fatiga + boost momentum
     """
     key = str(team_id)
     rec = state["teams"].get(key)
 
-    if not rec or rec["matches_played_in_wc"] == 0:
-        # Sin datos de Mundial — usa prior
-        return se.TeamRating(atq=prior_atq, def_=prior_def, cpg=8.5,
-                             estilo="B", sample_size=5)
+    if not rec:
+        # team_name nuevo — disparamos _new_team_record indirectamente via getter
+        # Pero como state es read-only aquí, usamos un fallback con prior StatsBomb
+        import statsbomb_prior as sbp
+        atk_prior, def_prior = sbp.get_team_prior(team_name)
+        atq = se.LEAGUE_AVG_GOALS["FIFA World Cup"] * atk_prior * context_mult
+        def_ = se.LEAGUE_AVG_GOALS["FIFA World Cup"] / max(def_prior, 0.5)
+        return se.TeamRating(atq=atq, def_=def_, cpg=8.5, estilo="B", sample_size=5)
 
-    # attack_strength es multiplicador vs media. Convertir a goles/partido.
     atq = se.LEAGUE_AVG_GOALS["FIFA World Cup"] * rec["attack_strength"]
     def_ = se.LEAGUE_AVG_GOALS["FIFA World Cup"] / max(rec["defense_strength"], 0.5)
 
-    # Penalización por fatiga: 1.0 fresco, 0.85 si exhausto
     fatigue_mult = 1.0 - 0.15 * rec["fatigue_index"]
     atq *= fatigue_mult
-
-    # Boost/penalty por momentum (-1 a +1 → ±10%)
     atq *= (1.0 + 0.10 * rec["form_momentum"])
+    atq *= context_mult  # venue altitude × weather × lineup quality
 
-    sample = rec["matches_played_in_wc"] * 3  # 1 partido WC ~= 3 amistosos en peso
-    return se.TeamRating(atq=atq, def_=def_, cpg=8.5, estilo="B",
-                         sample_size=max(sample, 5))
+    sample = max(rec["matches_played_in_wc"] * 3, 5)
+    return se.TeamRating(atq=atq, def_=def_, cpg=8.5, estilo="B", sample_size=sample)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Contexto del partido: venue + weather + lineups + lesiones
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_match_context(match: md.Match) -> dict:
+    """
+    Devuelve dict con:
+      - venue_info (con altitude_goal_boost, fatigue_factor)
+      - weather (con goal_factor, fatigue_factor adicional)
+      - home_context_mult, away_context_mult (combinados para alimentar el rating)
+      - lineup_notes / injury_notes (texto para WhatsApp y veto)
+    """
+    venue_info = venues.lookup(match.venue) or {}
+    weather = wx.get_weather_for_match(match.venue, match.utc_kickoff)
+
+    altitude_boost = venue_info.get("altitude_goal_boost", 1.0)
+    venue_fatigue  = venue_info.get("fatigue_factor", 1.0)
+
+    weather_goal_factor = weather.get("goal_factor", 1.0) if weather else 1.0
+    weather_fatigue     = weather.get("fatigue_factor", 1.0) if weather else 1.0
+
+    # Multiplicador compuesto al ataque de AMBOS equipos
+    # altitude_boost va a ambos (afecta partido completo)
+    # weather goal_factor va a ambos (lluvia/frío afecta ambos)
+    combined_goal_mult = altitude_boost * weather_goal_factor
+
+    # Lineups + lesiones (intenta obtener api-sports fixture id)
+    lineup_notes = []
+    injury_notes = []
+    home_lineup_penalty = 1.0
+    away_lineup_penalty = 1.0
+
+    try:
+        as_fixture_id = md.get_api_sports_fixture_id(
+            match.home_tla, match.away_tla, match.utc_kickoff[:10])
+        if as_fixture_id:
+            lineups = md.get_lineups_for_fixture(as_fixture_id)
+            if lineups:
+                for team_lineup in lineups:
+                    lineup_notes.append(
+                        f"{team_lineup.get('team', {}).get('name', '?')}: "
+                        f"{team_lineup.get('formation', '?')}"
+                    )
+            injuries = md.get_injuries_for_fixture(as_fixture_id)
+            if injuries:
+                # Cuenta lesionados por equipo
+                home_injured = 0
+                away_injured = 0
+                for inj in injuries:
+                    team_name = inj.get("team", {}).get("name", "")
+                    player_name = inj.get("player", {}).get("name", "?")
+                    if match.home_tla.upper() in team_name.upper() or \
+                       match.home_name.upper()[:5] in team_name.upper():
+                        home_injured += 1
+                        injury_notes.append(f"🏥 {match.home_tla}: {player_name}")
+                    else:
+                        away_injured += 1
+                        injury_notes.append(f"🏥 {match.away_tla}: {player_name}")
+                # Cada lesionado clave penaliza 3% (max 15%)
+                home_lineup_penalty = max(0.85, 1.0 - 0.03 * home_injured)
+                away_lineup_penalty = max(0.85, 1.0 - 0.03 * away_injured)
+    except Exception as e:
+        print(f"  [context] no se pudo obtener lineups/lesiones: {e}")
+
+    home_mult = combined_goal_mult * home_lineup_penalty
+    away_mult = combined_goal_mult * away_lineup_penalty
+
+    return {
+        "venue": venue_info,
+        "weather": weather,
+        "home_context_mult": round(home_mult, 3),
+        "away_context_mult": round(away_mult, 3),
+        "lineup_notes": lineup_notes,
+        "injury_notes": injury_notes,
+        "altitude_m": venue_info.get("altitude_m", 0),
+        "weather_condition": weather.get("condition") if weather else "unknown",
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -118,11 +200,14 @@ KICKOFF UTC: {match.utc_kickoff}
 PICK PROPUESTO: {pick_label} (mercado {pick_market})
 EDGE DEL MODELO: +{edge_pct:.1f}%
 
-Usa web_search para verificar EN ORDEN:
-1. Clima previsto en la sede a la hora del partido (lluvia → menos goles; calor extremo → menos goles; altitud Azteca → más goles).
-2. Lineups confirmados/probables. ¿Falta algún goleador estrella? ¿Hay rotaciones masivas?
-3. Motivación: ¿algún equipo ya clasificó/eliminado matemáticamente? Si sí, esperan rotaciones.
-4. Noticias últimas 48h: lesiones, escándalos, sanciones, problemas internos.
+CONTEXTO: api-sports.io free no cubre 2026, así que tú eres la ÚNICA fuente
+de lineups y lesiones. Usa web_search agresivamente para verificar EN ORDEN:
+
+1. **LINEUPS confirmados** (búsqueda obligatoria: "{match.home_name} {match.away_name} lineup confirmed {match.utc_kickoff[:10]}"). ¿Falta el goleador top? ¿Rotaciones?
+2. **LESIONES y SUSPENSIONES** últimas 48h de ambos equipos.
+3. **Clima** previsto en la sede a la hora del partido (lluvia → menos goles; calor extremo → menos goles; altitud Azteca → más goles).
+4. **Motivación**: ¿algún equipo ya clasificó/eliminado? Si sí, esperan rotaciones.
+5. **Noticias** ≤48h: escándalos, problemas internos, decisiones tácticas anunciadas.
 
 Responde JSON ESTRICTO:
 {{
@@ -212,8 +297,14 @@ def analyze_day(date_local: Optional[datetime] = None,
         if match.is_finished:
             continue
 
-        home_rating = team_rating_from_state(state, match.home_id)
-        away_rating = team_rating_from_state(state, match.away_id)
+        ctx = build_match_context(match)
+        print(f"  · {match.home_tla} vs {match.away_tla} @ {ctx['venue'].get('stadium', '?')} "
+              f"alt={ctx['altitude_m']}m clima={ctx['weather_condition']}")
+
+        home_rating = team_rating_from_state(state, match.home_id, match.home_name,
+                                              ctx["home_context_mult"])
+        away_rating = team_rating_from_state(state, match.away_id, match.away_name,
+                                              ctx["away_context_mult"])
 
         # Odds reales (si tenemos provider) o None para análisis sin edge
         odds_dict = odds_provider(match) if odds_provider else None

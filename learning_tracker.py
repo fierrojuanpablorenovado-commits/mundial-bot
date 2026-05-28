@@ -50,6 +50,7 @@ from pathlib import Path
 from typing import Optional
 
 import mundial_data as md
+import statsbomb_prior as sbp
 
 STATE_FILE = Path(__file__).parent / "model_state.json"
 
@@ -70,11 +71,13 @@ FATIGUE_RECOVERY_DAY   = 0.10        # recupera 10% por día de descanso
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _new_team_record(name: str, tla: str) -> dict:
+    # Warm-start desde StatsBomb (Mundial 2018+2022). Si no hay prior → 1.0/1.0
+    atk_prior, def_prior = sbp.get_team_prior(name)
     return {
         "name": name,
         "tla": tla,
-        "attack_strength": 1.0,
-        "defense_strength": 1.0,
+        "attack_strength": atk_prior,
+        "defense_strength": def_prior,
         "form_momentum": 0.0,
         "matches_played_in_wc": 0,
         "xg_for_avg": 0.0,
