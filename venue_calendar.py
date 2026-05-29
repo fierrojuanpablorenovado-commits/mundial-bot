@@ -107,6 +107,27 @@ ALIAS_GROUPS: list[set[str]] = [
     {"panama", "panamá"},
     {"honduras", "honduras"},
     {"costa rica", "costa rica"},
+    # Nombres adicionales — variantes comunes en Altenar es-ES
+    {"qatar", "catar"},                                      # Catar (español)
+    {"haiti", "haití"},                                      # Haití (español)
+    {"indonesia", "indonesia"},
+    {"kenya", "kenia"},
+    {"china", "china"},
+    {"uzbekistan", "uzbekistán"},
+    {"albania", "albania"},
+    {"algeria", "argelia"},
+    {"mali", "mali", "malí"},
+    {"tanzania", "tanzania"},
+    {"zimbabwe", "zimbabue"},
+    {"bosnia and herzegovina", "bosnia-herzegovina",
+     "bosnia y herzegovina", "bosnia & herzegovina"},
+    {"democratic republic of congo", "rd congo", "república democrática del congo"},
+    {"côte d'ivoire", "ivory coast", "costa de marfil",
+     "costa marfil", "cote d'ivoire"},
+    {"new zealand", "nueva zelanda", "nueva zelandia"},
+    {"central african republic", "república centroafricana"},
+    {"chinese taipei", "taipei"},
+    {"cape verde", "cabo verde"},
 ]
 # Construir índice unaccented → grupo (para lookup O(1))
 def _unaccent(s: str) -> str:
