@@ -58,10 +58,12 @@ def _send_callmebot(mensaje: str) -> bool:
     if not phone or not apikey:
         print("[notify] CallMeBot: sin CALLMEBOT_PHONE/APIKEY — mensaje no enviado")
         return False
+    # CallMeBot espera número SIN '+' — limpiar y URL-encodear por si acaso
+    phone_clean = phone.lstrip("+").replace(" ", "").replace("-", "")
     encoded = urllib.parse.quote(mensaje)
     url = (
         f"https://api.callmebot.com/whatsapp.php"
-        f"?phone={phone}&text={encoded}&apikey={apikey}"
+        f"?phone={phone_clean}&text={encoded}&apikey={urllib.parse.quote(apikey)}"
     )
     try:
         r = requests.get(url, timeout=15)
