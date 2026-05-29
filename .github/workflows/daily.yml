@@ -2,16 +2,14 @@ name: Mundial Bot - Daily Cron
 
 on:
   schedule:
-    # 13:00 UTC = 08:00 CDT México (verano UTC-5 desde abril; CDT/CST varía)
-    # Durante el Mundial 2026 (junio-julio) México está en CDT = UTC-5 en gran parte;
-    # 13:00 UTC = 08:00 CDT. Si se requiere 8 AM CST puro (UTC-6) ajustar a 14:00.
+    # 13:00 UTC = 08:00 CDT México (México no observa DST desde 2022, UTC-6 todo el año)
     - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "DRY_RUN (true = no apuesta, solo notifica)"
+        description: "DRY_RUN (true = solo notifica sin apostar)"
         required: false
-        default: "true"
+        default: "false"
       target_date:
         description: "Fecha a simular YYYY-MM-DD (vacío = hoy). Ej: 2026-06-11"
         required: false
@@ -49,7 +47,9 @@ jobs:
 
       - name: Run mundial_runner
         env:
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          # ── PRODUCCIÓN: apuesta real desde 11-jun-2026 ──────────────────────
+          # workflow_dispatch puede forzar dry_run=true para testing manual
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
           BANKROLL_INITIAL: "1000"
           KELLY_DIV: "5"
           EDGE_MIN_PCT: "6"
@@ -59,22 +59,18 @@ jobs:
           STOP_LOSS_PCT: "30"
           SOFT_PAUSE_PCT: "15"
           PYTHONIOENCODING: "utf-8"
-          # ── KILL-SWITCH: notificaciones APAGADAS, canal 'stdout' (solo logs) ──
-          # CallMeBot está BLOQUEADO en notify.py — exclusivo del playdoit-bot.
-          # Cambiar a NOTIFICATIONS_ENABLED="true" y CHANNEL="telegram" solo cuando
-          # JP haya confirmado canal+horario+formato finales y creado el bot en @BotFather.
-          NOTIFICATIONS_ENABLED: "false"
-          CHANNEL: "stdout"
-          # Secrets — SEPARADOS del playdoit-bot:
-          # PlayDoit credentials se comparten (misma cuenta)
+          # ── Notificaciones: CallMeBot WhatsApp (activado por JP 29-may-2026) ──
+          NOTIFICATIONS_ENABLED: "true"
+          CHANNEL: "callmebot"
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          # ── Credentials PlayDoit (misma cuenta JP) ────────────────────────────
           PLAYDOIT_USER: ${{ secrets.PLAYDOIT_USER }}
           PLAYDOIT_PASS: ${{ secrets.PLAYDOIT_PASS }}
           PROXY_URL: ${{ secrets.PROXY_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
           API_SPORTS_KEY: ${{ secrets.API_SPORTS_KEY }}
-          # Telegram bot DEDICADO del mundial-bot — NO CallMeBot/WhatsApp
-          # (CallMeBot/WhatsApp es exclusivo del playdoit-bot para evitar cruce)
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TARGET_DATE: ${{ github.event.inputs.target_date || '' }}
