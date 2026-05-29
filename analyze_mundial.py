@@ -278,13 +278,41 @@ Responde JSON ESTRICTO:
 passes=false SOLO si encuentras red flag fuerte que invalide el pick.
 """
 
-        resp = client.chat.completions.create(
-            model="gpt-5",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            tools=[{"type": "web_search"}],
-        )
-        raw = resp.choices[0].message.content or "{}"
+        raw = None
+
+        # 1. Intentar Responses API con web_search_preview (SDK >= 1.54, model gpt-4o)
+        #    — da búsqueda web real de lineups/lesiones/clima actuales
+        try:
+            resp = client.responses.create(
+                model="gpt-4o",
+                tools=[{"type": "web_search_preview"}],
+                input=prompt,
+            )
+            raw = resp.output_text or ""
+        except Exception:
+            raw = None
+
+        # 2. Fallback: chat.completions con gpt-4o-mini (sin web search, usa conocimiento entrenamiento)
+        if not raw:
+            resp2 = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+                max_tokens=500,
+            )
+            raw = resp2.choices[0].message.content or "{}"
+
+        # Extraer JSON del texto (puede venir en bloque ```json...``` o con texto alrededor)
+        import re as _re
+        m = _re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, _re.DOTALL)
+        if m:
+            raw = m.group(1)
+        else:
+            m2 = _re.search(r"\{[^{}]*\}", raw, _re.DOTALL)
+            if m2:
+                raw = m2.group(0)
+
         verdict = json.loads(raw)
         passes = verdict.get("passes", True)
         reason = verdict.get("reason", "OK")
