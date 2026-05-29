@@ -107,21 +107,33 @@ ALIAS_GROUPS: list[set[str]] = [
     {"panama", "panamá"},
     {"honduras", "honduras"},
     {"costa rica", "costa rica"},
-    # Nombres adicionales — variantes comunes en Altenar es-ES
-    {"qatar", "catar"},                                      # Catar (español)
-    {"haiti", "haití"},                                      # Haití (español)
+    # ── Equipos WC 2026 — nombres EXACTOS de PlayDoit/Altenar es-ES (verificados 29-may-2026) ──
+    # Lista completa de 48 selecciones con sus nombres en español:
+    # Alemania, Arabia Saudita, Argelia, Argentina, Australia, Austria,
+    # Bosnia y Herzegovina, Brasil, Bélgica, Cabo Verde, Canadá, Catar,
+    # Chequia, Colombia, Corea del Sur, Costa de Marfil, Croacia, Curazao,
+    # Ecuador, Egipto, Escocia, España, Estados Unidos, Francia, Ghana,
+    # Haití, Inglaterra, Irak, Irán, Japón, Jordania, Marruecos, México,
+    # Noruega, Nueva Zelanda, Panamá, Paraguay, Países Bajos, Portugal,
+    # RD Congo, Senegal, Sudáfrica, Suecia, Suiza, Turquía, Túnez, Uruguay, Uzbekistán
+    {"qatar", "catar"},
+    {"haiti", "haití"},
+    {"norway", "noruega"},
+    {"sweden", "suecia"},
+    {"curaçao", "curacao", "curazao"},               # Curazao en PlayDoit
+    {"algeria", "argelia"},
+    {"uzbekistan", "uzbekistán"},
     {"indonesia", "indonesia"},
     {"kenya", "kenia"},
-    {"china", "china"},
-    {"uzbekistan", "uzbekistán"},
+    {"china", "china pr", "china pr"},
     {"albania", "albania"},
-    {"algeria", "argelia"},
-    {"mali", "mali", "malí"},
+    {"mali", "malí"},
     {"tanzania", "tanzania"},
     {"zimbabwe", "zimbabue"},
     {"bosnia and herzegovina", "bosnia-herzegovina",
      "bosnia y herzegovina", "bosnia & herzegovina"},
-    {"democratic republic of congo", "rd congo", "república democrática del congo"},
+    {"democratic republic of congo", "dr congo", "congo dr",
+     "rd congo", "república democrática del congo"},
     {"côte d'ivoire", "ivory coast", "costa de marfil",
      "costa marfil", "cote d'ivoire"},
     {"new zealand", "nueva zelanda", "nueva zelandia"},
