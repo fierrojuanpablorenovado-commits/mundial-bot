@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import time
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -46,33 +47,93 @@ VENUE_NORMALIZATION = {
     "Estadio Banorte": "Estadio Azteca",       # nombre patrocinado
 }
 
-# Aliases de nombres de país/equipo entre football-data ↔ thesportsdb
-COUNTRY_ALIASES = {
-    "czechia":          "czech republic",
-    "czech republic":   "czechia",
-    "korea republic":   "south korea",
-    "south korea":      "korea republic",
-    "usa":              "united states",
-    "united states":    "usa",
-    "iran":             "iran",
-    "ir iran":          "iran",
-    "côte d'ivoire":    "ivory coast",
-    "ivory coast":      "côte d'ivoire",
-    "cabo verde":       "cape verde",
-    "cape verde":       "cabo verde",
-    "north macedonia":  "macedonia",
-    "macedonia":        "north macedonia",
-    "bosnia-herzegovina": "bosnia and herzegovina",
-    "bosnia and herzegovina": "bosnia-herzegovina",
-}
+# Grupos de equivalencia: cada set contiene todos los nombres que se refieren
+# al mismo país/selección (inglés, español, abreviaturas, alternos).
+# Altenar/PlayDoit México usa nombres en ESPAÑOL — incluyendo tildes.
+# _unaccent() normaliza tildes antes de buscar en estos grupos.
+ALIAS_GROUPS: list[set[str]] = [
+    # ── Variantes inglesas ──────────────────────────────────────────────────
+    {"czechia", "czech republic"},
+    {"usa", "united states"},
+    {"iran", "ir iran"},
+    {"côte d'ivoire", "ivory coast"},
+    {"cabo verde", "cape verde"},
+    {"north macedonia", "republic of north macedonia", "macedonia"},
+    {"bosnia-herzegovina", "bosnia and herzegovina"},
+    # ── Español ↔ Inglés (Altenar PlayDoit México) ──────────────────────────
+    {"germany", "alemania"},
+    {"spain", "españa"},           # "españa" → unaccent → "espana" ≠ "spain"
+    {"france", "francia"},
+    {"netherlands", "países bajos", "paises bajos", "holanda"},
+    {"belgium", "bélgica"},
+    {"brazil", "brasil"},
+    {"japan", "japón"},            # "japón" → unaccent → "japon" ≠ "japan"
+    {"switzerland", "suiza"},
+    {"south africa", "sudáfrica"},
+    {"morocco", "marruecos"},
+    {"new zealand", "nueva zelanda"},
+    {"cameroon", "camerún"},
+    {"romania", "rumania"},
+    {"slovenia", "eslovenia"},
+    {"iraq", "irak"},
+    {"saudi arabia", "arabia saudita"},
+    {"north korea", "corea del norte", "korea dpr"},
+    {"south korea", "corea del sur", "korea republic"},
+    {"czechia", "chequia", "czech republic"},
+    {"united states", "estados unidos", "usa"},
+    {"iran", "irán", "ir iran"},
+    {"ivory coast", "costa de marfil", "côte d'ivoire"},
+    {"england", "inglaterra"},
+    {"croatia", "croacia"},
+    {"turkey", "turquía"},
+    {"scotland", "escocia"},
+    {"hungary", "hungría"},
+    {"slovakia", "eslovaquia"},
+    {"egypt", "egipto"},
+    {"tunisia", "túnez", "tunicia"},
+    {"jordan", "jordania"},
+    {"australia", "australia"},
+    {"serbia", "serbia"},
+    {"nigeria", "nigeria"},
+    {"ghana", "ghana"},
+    {"senegal", "senegal"},
+    {"venezuela", "venezuela"},
+    {"colombia", "colombia"},
+    {"ecuador", "ecuador"},
+    {"uruguay", "uruguay"},
+    {"argentina", "argentina"},
+    {"portugal", "portugal"},
+    {"austria", "austria"},
+    {"panama", "panamá"},
+    {"honduras", "honduras"},
+    {"costa rica", "costa rica"},
+]
+# Construir índice unaccented → grupo (para lookup O(1))
+def _unaccent(s: str) -> str:
+    """Quita tildes/diacríticos: México→mexico, España→espana, Países Bajos→paises bajos."""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", s.lower().strip())
+        if unicodedata.category(c) != "Mn"
+    )
 
 
 def _name_variants(name: str) -> set[str]:
-    """Devuelve todas las variantes conocidas de un nombre."""
-    n = name.lower().strip()
-    variants = {n}
-    if n in COUNTRY_ALIASES:
-        variants.add(COUNTRY_ALIASES[n])
+    """
+    Devuelve todas las variantes conocidas de un nombre (con unaccent + alias groups).
+    Cubre football-data.org (inglés) ↔ Altenar/PlayDoit (español con tildes).
+    """
+    n_lower   = name.lower().strip()
+    n_unacc   = _unaccent(name)
+    variants  = {n_lower, n_unacc}
+
+    for group in ALIAS_GROUPS:
+        group_unacc = {_unaccent(g) for g in group}
+        # Match por nombre exacto (con tilde) o por versión sin tilde
+        if n_lower in group or n_unacc in group_unacc:
+            variants.update(g.lower() for g in group)
+            variants.update(group_unacc)
+            break
+
     return variants
 
 

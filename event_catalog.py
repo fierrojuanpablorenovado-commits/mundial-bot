@@ -35,6 +35,12 @@ SPORTS = {
     "tenis_mesa": 77,   # Tenis de mesa (eliminado del análisis — sin datos)
 }
 
+# Championship ID del Copa Mundial FIFA 2026 en Altenar (verificado vía GetSportMenu)
+# GetUpcoming(sportId=66) NUNCA alcanza los partidos del Mundial porque devuelve ≤800
+# eventos ordenados por fecha y todos caen en los próximos 4 días (ligas activas).
+# GetEventsByChamp(champIds=3146) devuelve los 707 partidos del torneo directamente.
+WC_CHAMP_ID = 3146
+
 
 def _get_upcoming(sport_id: int, hours_ahead: int = 52) -> List[dict]:
     """
@@ -286,6 +292,81 @@ def get_upcoming_catalog(hours_ahead: int = 52,
         })
 
     log.info(f"[Catalog] TOTAL eventos con mercados O/U: {len(result)}")
+    return result
+
+
+def get_wc_catalog(days_ahead: int = 2) -> List[dict]:
+    """
+    Catálogo específico Copa Mundial FIFA 2026 vía GetEventsByChamp(champIds=3146).
+
+    Soluciona el problema de GetUpcoming: ese endpoint devuelve ≤800 eventos ordenados
+    por fecha, todos dentro de los próximos 4 días de ligas activas — los partidos del
+    Mundial (11-jun a 19-jul 2026) NUNCA aparecen porque quedan más allá de esa ventana.
+
+    GetEventsByChamp con el champId correcto (3146 = Copa Mundial 2026) devuelve los
+    707 eventos del torneo directamente. Se filtra por ventana de días y se llama
+    GetEventDetails para obtener las cuotas reales.
+
+    Args:
+        days_ahead: ventana de días desde ahora (default 2 = hoy + mañana)
+
+    Returns: lista con mismo formato que get_upcoming_catalog()
+    """
+    log.info(f"[Catalog] WC GetEventsByChamp champId={WC_CHAMP_ID}...")
+    now    = datetime.now(timezone.utc)
+    cutoff = now + timedelta(days=days_ahead)
+    result = []
+
+    try:
+        r = requests.get(
+            f"{API_BASE}/GetEventsByChamp",
+            params={**API_PARAMS, "champIds": str(WC_CHAMP_ID)},
+            headers=HEADERS, timeout=30,
+        )
+        r.raise_for_status()
+        data   = r.json() or {}
+        events = data.get("events", [])
+        log.info(f"[Catalog] WC total eventos en torneo: {len(events)}")
+    except Exception as e:
+        log.warning(f"[Catalog] GetEventsByChamp error: {e}")
+        return []
+
+    # Filtrar solo partidos en la ventana de interés (evitar llamadas innecesarias a GetEventDetails)
+    in_window = []
+    for ev in events:
+        start_str = ev.get("startDate", "")
+        try:
+            start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if now <= start_dt <= cutoff:
+            in_window.append((ev, start_dt))
+
+    log.info(f"[Catalog] WC en ventana {days_ahead}d: {len(in_window)} partidos")
+
+    for ev, _dt in in_window:
+        event_id = ev.get("id")
+        if not event_id:
+            continue
+        markets, meta = _get_ou_markets(event_id)
+        if not any(m["market"] == "goles" for m in markets):
+            log.debug(f"[Catalog] WC evento {event_id} sin mercado goles — skip")
+            continue
+        name  = ev.get("name", "")
+        parts = [p.strip() for p in name.split(" vs. ")]
+        result.append({
+            "event_id":  event_id,
+            "partido":   name,
+            "home_team": parts[0] if parts else name,
+            "away_team": parts[1] if len(parts) > 1 else "",
+            "league":    meta.get("champ_name", "Copa Mundial 2026"),
+            "category":  meta.get("category", ""),
+            "sport":     "futbol",
+            "fecha_utc": ev.get("startDate", ""),
+            "mercados":  markets,
+        })
+
+    log.info(f"[Catalog] WC con cuotas de goles: {len(result)} partidos")
     return result
 
 

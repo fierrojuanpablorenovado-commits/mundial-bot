@@ -23,7 +23,7 @@ from typing import Optional
 
 import event_catalog
 import mundial_data as md
-from venue_calendar import _name_variants
+from venue_calendar import _name_variants, _unaccent
 
 
 # Cache local del catálogo (15 min — refrescar dentro de cada cron)
@@ -33,36 +33,51 @@ _CACHE_TTL_SECONDS = 60 * 15
 
 
 def _get_catalog(hours_ahead: int = 48, force: bool = False) -> list[dict]:
-    """Cache del catálogo PlayDoit para no quemar requests durante una corrida."""
+    """
+    Cache del catálogo PlayDoit para no quemar requests durante una corrida.
+
+    Usa GetEventsByChamp(champId=3146) en lugar de GetUpcoming porque este último
+    solo devuelve eventos en los próximos 4 días (ligas activas), y los partidos
+    del Mundial (junio-julio) quedan fuera de esa ventana.
+    """
     global _CATALOG_CACHE, _CATALOG_TS
     if not force and _CATALOG_CACHE and (time.time() - _CATALOG_TS) < _CACHE_TTL_SECONDS:
         return _CATALOG_CACHE
     try:
-        _CATALOG_CACHE = event_catalog.get_upcoming_catalog(
-            hours_ahead=hours_ahead, max_soccer=80, max_nba=0, max_hockey=0
-        )
-        _CATALOG_TS = time.time()
+        # Convertir hours_ahead → days_ahead con un buffer +1
+        days = max(1, (hours_ahead // 24) + 1)
+        _CATALOG_CACHE = event_catalog.get_wc_catalog(days_ahead=days)
     except Exception as e:
-        print(f"[mundial_odds] fallo catalog: {e}")
+        print(f"[mundial_odds] fallo wc_catalog: {e}")
+    _CATALOG_TS = time.time()
     return _CATALOG_CACHE
 
 
 def _names_match(a: str, b: str) -> bool:
-    """Fuzzy match con aliases conocidos (Czechia ↔ Czech Republic, etc.)."""
+    """
+    Fuzzy match con alias groups + unaccent.
+    Cubre football-data.org (inglés) ↔ Altenar/PlayDoit (español con tildes).
+    Ejemplos: 'Germany' ↔ 'Alemania', 'South Africa' ↔ 'Sudáfrica', 'Mexico' ↔ 'México'.
+    """
     if not a or not b:
         return False
     a_l, b_l = a.lower().strip(), b.lower().strip()
     if a_l == b_l:
         return True
-    # Aliases
-    a_vars = _name_variants(a) | {a_l}
-    b_vars = _name_variants(b) | {b_l}
+    # Unaccent directo (México→mexico, Sudáfrica→sudafrica, etc.)
+    a_ua, b_ua = _unaccent(a), _unaccent(b)
+    if a_ua == b_ua:
+        return True
+    # Alias groups (alemania↔germany, brasil↔brazil, etc.) + variantes unaccented
+    a_vars = _name_variants(a) | {a_l, a_ua}
+    b_vars = _name_variants(b) | {b_l, b_ua}
     for av in a_vars:
         for bv in b_vars:
-            if av == bv or av in bv or bv in av:
-                # Evitar match espurio por palabras genéricas
-                if len(av) >= 4 and len(bv) >= 4:
-                    return True
+            if av == bv:
+                return True
+            # Substring solo para nombres ≥5 chars (evita falsos positivos con palabras cortas)
+            if len(av) >= 5 and len(bv) >= 5 and (av in bv or bv in av):
+                return True
     return False
 
 
