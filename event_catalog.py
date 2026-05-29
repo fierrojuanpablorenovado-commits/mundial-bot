@@ -295,7 +295,8 @@ def get_upcoming_catalog(hours_ahead: int = 52,
     return result
 
 
-def get_wc_catalog(days_ahead: int = 2) -> List[dict]:
+def get_wc_catalog(days_ahead: int = 2,
+                   reference_dt: Optional[datetime] = None) -> List[dict]:
     """
     Catálogo específico Copa Mundial FIFA 2026 vía GetEventsByChamp(champIds=3146).
 
@@ -308,13 +309,21 @@ def get_wc_catalog(days_ahead: int = 2) -> List[dict]:
     GetEventDetails para obtener las cuotas reales.
 
     Args:
-        days_ahead: ventana de días desde ahora (default 2 = hoy + mañana)
+        days_ahead:   ventana de días (default 2 = hoy + mañana)
+        reference_dt: fecha de referencia para la ventana (default = now UTC).
+                      Usar TARGET_DATE cuando se simula una fecha futura — si no,
+                      la ventana parte de "hoy" y no alcanza junio/julio.
 
     Returns: lista con mismo formato que get_upcoming_catalog()
     """
     log.info(f"[Catalog] WC GetEventsByChamp champId={WC_CHAMP_ID}...")
-    now    = datetime.now(timezone.utc)
-    cutoff = now + timedelta(days=days_ahead)
+    # Usar reference_dt (TARGET_DATE) como base, no datetime.now()
+    # Esto es crítico para simulaciones: si TARGET_DATE=2026-06-11 y today=2026-05-29,
+    # la ventana debe centrarse en junio, no en mayo.
+    base   = reference_dt if reference_dt is not None else datetime.now(timezone.utc)
+    # Ventana: desde medianoche del día de referencia hasta +days_ahead días
+    start_window = base.replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff       = start_window + timedelta(days=days_ahead)
     result = []
 
     try:
@@ -339,10 +348,10 @@ def get_wc_catalog(days_ahead: int = 2) -> List[dict]:
             start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
         except Exception:
             continue
-        if now <= start_dt <= cutoff:
+        if start_window <= start_dt < cutoff:
             in_window.append((ev, start_dt))
 
-    log.info(f"[Catalog] WC en ventana {days_ahead}d: {len(in_window)} partidos")
+    log.info(f"[Catalog] WC en ventana {days_ahead}d (ref={base.date()}): {len(in_window)} partidos")
 
     for ev, _dt in in_window:
         event_id = ev.get("id")

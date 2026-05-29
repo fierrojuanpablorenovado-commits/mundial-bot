@@ -18,7 +18,9 @@ retorna None → analyze_day saltará ese partido.
 """
 from __future__ import annotations
 
+import os
 import time
+from datetime import datetime, timezone
 from typing import Optional
 
 import event_catalog
@@ -30,6 +32,22 @@ from venue_calendar import _name_variants, _unaccent
 _CATALOG_CACHE: list[dict] = []
 _CATALOG_TS: float = 0.0
 _CACHE_TTL_SECONDS = 60 * 15
+
+
+def _resolve_reference_dt() -> Optional[datetime]:
+    """
+    Lee TARGET_DATE del entorno (igual que mundial_runner.py) para que la ventana
+    del catálogo WC se centre en la fecha objetivo, no en el día real de hoy.
+    Crítico en simulaciones: TARGET_DATE=2026-06-11 mientras today=2026-05-29.
+    """
+    raw = os.environ.get("TARGET_DATE", "").strip()
+    if not raw:
+        return None
+    try:
+        d = datetime.strptime(raw, "%Y-%m-%d")
+        return d.replace(hour=0, minute=0, second=0, tzinfo=timezone.utc)
+    except ValueError:
+        return None
 
 
 def _get_catalog(hours_ahead: int = 48, force: bool = False) -> list[dict]:
@@ -44,9 +62,9 @@ def _get_catalog(hours_ahead: int = 48, force: bool = False) -> list[dict]:
     if not force and _CATALOG_CACHE and (time.time() - _CATALOG_TS) < _CACHE_TTL_SECONDS:
         return _CATALOG_CACHE
     try:
-        # Convertir hours_ahead → days_ahead con un buffer +1
-        days = max(1, (hours_ahead // 24) + 1)
-        _CATALOG_CACHE = event_catalog.get_wc_catalog(days_ahead=days)
+        ref_dt = _resolve_reference_dt()          # None en producción, TARGET_DATE en simulaciones
+        days   = max(2, (hours_ahead // 24) + 1)  # hoy + mañana mínimo
+        _CATALOG_CACHE = event_catalog.get_wc_catalog(days_ahead=days, reference_dt=ref_dt)
     except Exception as e:
         print(f"[mundial_odds] fallo wc_catalog: {e}")
     _CATALOG_TS = time.time()
