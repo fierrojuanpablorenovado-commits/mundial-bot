@@ -64,14 +64,15 @@ def _send_callmebot(mensaje: str) -> bool:
     if not phone_clean:
         print("[notify] CallMeBot: CALLMEBOT_PHONE sin dígitos — mensaje no enviado")
         return False
-    encoded = urllib.parse.quote(mensaje)
-    url = (
-        f"https://api.callmebot.com/whatsapp.php"
-        f"?phone={phone_clean}&text={encoded}&apikey={urllib.parse.quote(apikey)}"
-    )
-    print(f"[notify] CallMeBot → phone={phone_clean[:4]}***{phone_clean[-3:]} len={len(phone_clean)}")
+    print(f"[notify] CallMeBot → phone={phone_clean[:4]}***{phone_clean[-3:]} len={len(phone_clean)} apikey_len={len(apikey)}")
     try:
-        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        # params= deja que requests maneje el URL-encoding (evita doble-encoding manual)
+        r = requests.get(
+            "https://api.callmebot.com/whatsapp.php",
+            params={"phone": phone_clean, "text": mensaje, "apikey": apikey},
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
         ok = r.status_code == 200
         if not ok:
             print(f"[notify] CallMeBot fallo: HTTP {r.status_code} — {r.text[:100]}")
