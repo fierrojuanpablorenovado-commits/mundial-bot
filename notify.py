@@ -12,6 +12,7 @@ NOTA: CallMeBot reactivado por instrucción explícita de JP (29-may-2026).
 """
 from __future__ import annotations
 import os
+import re
 import urllib.parse
 import requests
 
@@ -58,15 +59,19 @@ def _send_callmebot(mensaje: str) -> bool:
     if not phone or not apikey:
         print("[notify] CallMeBot: sin CALLMEBOT_PHONE/APIKEY — mensaje no enviado")
         return False
-    # CallMeBot espera número SIN '+' — limpiar y URL-encodear por si acaso
-    phone_clean = phone.lstrip("+").replace(" ", "").replace("-", "")
+    # CallMeBot espera solo dígitos, sin '+', sin espacios, sin guiones
+    phone_clean = re.sub(r'\D', '', phone)   # extrae solo dígitos
+    if not phone_clean:
+        print("[notify] CallMeBot: CALLMEBOT_PHONE sin dígitos — mensaje no enviado")
+        return False
     encoded = urllib.parse.quote(mensaje)
     url = (
         f"https://api.callmebot.com/whatsapp.php"
         f"?phone={phone_clean}&text={encoded}&apikey={urllib.parse.quote(apikey)}"
     )
+    print(f"[notify] CallMeBot → phone={phone_clean[:4]}***{phone_clean[-3:]} len={len(phone_clean)}")
     try:
-        r = requests.get(url, timeout=15)
+        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
         ok = r.status_code == 200
         if not ok:
             print(f"[notify] CallMeBot fallo: HTTP {r.status_code} — {r.text[:100]}")
