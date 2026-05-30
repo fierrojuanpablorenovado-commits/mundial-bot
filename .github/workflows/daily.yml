@@ -47,9 +47,9 @@ jobs:
 
       - name: Run mundial_runner
         env:
-          # ── PRODUCCIÓN: apuesta real desde 11-jun-2026 ──────────────────────
-          # workflow_dispatch puede forzar dry_run=true para testing manual
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          # ── JP APUESTA MANUAL — bot solo notifica, NO apuesta ────────────────
+          # JP decide manualmente cada apuesta tras revisar el WhatsApp del bot
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
           BANKROLL_INITIAL: "1000"
           KELLY_DIV: "5"
           EDGE_MIN_PCT: "6"
