@@ -297,10 +297,14 @@ def main() -> int:
     _write_daily_report(state, bk, picks, res_summary, all_today, place_results)
     print(f"\n[PASO 6] daily_report.json escrito ({DAILY_REPORT_FILE.name})")
 
-    # Paso 7: notificación (respeta kill-switch)
+    # Paso 7: notificación — solo si hay picks (o resultado de ayer relevante)
+    # Silenciamos el "0 picks" antes del inicio del Mundial para no molestar
     msg = _format_notification(picks, bk, today_label, res_summary)
     print("\n" + msg)
-    notify.send(msg)
+    if picks or res_summary.get("resolved", 0) > 0:
+        notify.send(msg)
+    else:
+        print("[notify] Sin picks ni resultados — notificación omitida")
 
     return 0
 
