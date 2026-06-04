@@ -199,24 +199,30 @@ def _write_daily_report(state: dict, bk: dict, picks: list, resolution_summary: 
 
 def _format_notification(picks: list, bk: dict, today_label: str,
                           resolution_summary: dict) -> str:
-    header = f"🏆 MUNDIAL IA | {today_label} · {len(picks)} pick(s)"
-    if DRY_RUN:
-        header += " [DRY RUN]"
+    """Formato del mensaje WhatsApp — solo se envía si placed_count > 0."""
+    header = f"🏆 MUNDIAL IA | {today_label} · {len(picks)} pick(s) apostado(s)"
+
+    bankroll_antes = bk["current_mxn"]
+    total_stake = sum(p.stake_mxn for p in picks)
+    # Si todas ganan (cuota promedio ponderada)
+    ganancia_si_ganan = sum(
+        p.stake_mxn * (float(p.odds) - 1) for p in picks
+    ) if picks else 0.0
+    bankroll_si_ganan = bankroll_antes - total_stake + total_stake + ganancia_si_ganan
 
     lines = [header, ""]
-    lines.append(f"💰 Bankroll: ${bk['current_mxn']:.0f} / ${bk['initial_mxn']:.0f}")
-    lines.append(f"📊 Multiplier: {bk['stake_multiplier']:.3f}x")
+    lines.append(f"💰 Bank antes:   ${bankroll_antes:.0f} MXN")
+    lines.append(f"💸 Apostado hoy: ${total_stake:.0f} MXN")
+    lines.append(f"🏆 Si todas W:   ${bankroll_si_ganan:.0f} MXN "
+                 f"(+${ganancia_si_ganan:.0f})")
+    lines.append(f"📊 Mult. Kelly:  {bk['stake_multiplier']:.3f}x")
 
     if resolution_summary.get("resolved", 0) > 0:
-        lines.append(f"\n📈 Ayer: W:{resolution_summary['won']} "
+        lines.append(f"\n📈 Resuelto ayer: W:{resolution_summary['won']} "
                      f"L:{resolution_summary['lost']} V:{resolution_summary['void']} "
                      f"P&L: ${resolution_summary['pnl_mxn']:+.0f}")
 
     lines.append("")
-    if not picks:
-        lines.append("Sin picks hoy — disciplina antes que cantidad.")
-        return "\n".join(lines)
-
     for i, p in enumerate(picks, 1):
         lines.append(f"{i}. {p.home} vs {p.away}")
         lines.append(f"   J{p.matchday} {p.group or 'KO'} · {p.kickoff_utc[11:16]} UTC")
@@ -286,25 +292,33 @@ def main() -> int:
     _persist_picks(picks, dry_run=DRY_RUN)
 
     place_results = []
+    placed_count = 0  # cuántas apuestas REALES se colocaron exitosamente
     if not DRY_RUN and picks:
         print(f"[PASO 5b] Colocando {len(picks)} apuestas reales...")
         place_results = _place_real_bets(picks)
-        won_count = sum(1 for r in place_results if r.get("success"))
-        print(f"  → {won_count}/{len(picks)} apuestas colocadas exitosamente")
+        placed_count = sum(1 for r in place_results if r.get("success"))
+        print(f"  → {placed_count}/{len(picks)} apuestas colocadas exitosamente")
 
     # Paso 6: daily report estructurado
     all_today = md.get_matches_for_date(today_cdt) if picks else []
     _write_daily_report(state, bk, picks, res_summary, all_today, place_results)
     print(f"\n[PASO 6] daily_report.json escrito ({DAILY_REPORT_FILE.name})")
 
-    # Paso 7: notificación — solo si hay picks (o resultado de ayer relevante)
-    # Silenciamos el "0 picks" antes del inicio del Mundial para no molestar
+    # Paso 7: notificación
+    # ══════════════════════════════════════════════════════════════════
+    # REGLA DURA (JP 04-jun-2026): SOLO enviar WhatsApp si se colocaron
+    # apuestas reales en esta sesión (DRY_RUN=false Y placed_count > 0).
+    # NUNCA enviar: resultados parciales, picks pre-torneo, errores, 0-picks.
+    # El bankroll siempre va incluido: antes / después (si todas ganan).
+    # ══════════════════════════════════════════════════════════════════
     msg = _format_notification(picks, bk, today_label, res_summary)
     print("\n" + msg)
-    if picks or res_summary.get("resolved", 0) > 0:
+    if not DRY_RUN and placed_count > 0:
         notify.send(msg)
+        print(f"[notify] ✅ Notificación enviada — {placed_count} apuesta(s) real(es) colocada(s)")
     else:
-        print("[notify] Sin picks ni resultados — notificación omitida")
+        reason = "DRY_RUN activo" if DRY_RUN else f"placed_count={placed_count} (sin apuestas reales)"
+        print(f"[notify] 🔕 Notificación OMITIDA — {reason} — REGLA DURA aplicada")
 
     return 0
 

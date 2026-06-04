@@ -59,8 +59,11 @@ jobs:
           STOP_LOSS_PCT: "30"
           SOFT_PAUSE_PCT: "15"
           PYTHONIOENCODING: "utf-8"
-          # ── Notificaciones: CallMeBot WhatsApp (activado por JP 29-may-2026) ──
-          NOTIFICATIONS_ENABLED: "true"
+          # ── Notificaciones: DESACTIVADAS por default ─────────────────────────
+          # REGLA DURA: solo activar cuando el Mundial arranque (11-jun) Y JP
+          # confirme que quiere apuestas reales. Cambiar a "true" via GitHub Variable.
+          # El runner.py tiene su propia guarda: no envía si placed_count == 0.
+          NOTIFICATIONS_ENABLED: ${{ vars.MUNDIAL_NOTIFICATIONS_ENABLED || 'false' }}
           CHANNEL: "callmebot"
           CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
           CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
