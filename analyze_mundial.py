@@ -39,6 +39,12 @@ import stats_engine as se
 import venues
 import weather as wx
 
+try:
+    import altenar_stats as alts
+    _ALTENAR_AVAILABLE = True
+except ImportError:
+    _ALTENAR_AVAILABLE = False
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Config (lee env)
@@ -343,6 +349,7 @@ class Pick:
     veto_reason: str
     matchday: int
     group: Optional[str]
+    altenar_stats: Optional[dict] = None  # Estadísticas reales Altenar Live Results
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -451,6 +458,18 @@ def analyze_day(date_local: Optional[datetime] = None,
         if not passes:
             print(f"  ❌ VETO: {pick.home} vs {pick.away} {pick.label} — {reason}")
             continue
+
+        # Enriquecer con stats reales de Altenar
+        if _ALTENAR_AVAILABLE:
+            try:
+                st = alts.get_match_stats(pick.home, pick.away)
+                pick.altenar_stats = st if st.get("available") else None
+                if st.get("available"):
+                    sig_key = "under25_signal" if "under" in pick.market.lower() else "over25_signal"
+                    sig = st.get(sig_key, "?").upper()
+                    print(f"      Altenar: avg_comb={st.get('combined_avg_goals')} U25_signal={sig}")
+            except Exception as ae:
+                print(f"      Altenar stats error: {ae}")
 
         selected.append(pick)
         selected_match_ids.add(pick.fd_match_id)

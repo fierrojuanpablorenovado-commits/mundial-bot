@@ -229,6 +229,19 @@ def _format_notification(picks: list, bk: dict, today_label: str,
         lines.append(f"   🎯 {p.label} @{p.odds:.2f}")
         lines.append(f"   📈 Edge +{p.edge_pct:.1f}% · P {p.model_prob*100:.0f}%")
         lines.append(f"   💵 ${p.stake_mxn:.0f} · {p.confidence}")
+
+        # Stats reales Altenar
+        st = getattr(p, "altenar_stats", None)
+        if st and st.get("available"):
+            h = st["home"]
+            a = st["away"]
+            sig_key = "under25_signal" if "under" in p.market.lower() else "over25_signal"
+            sig = st.get(sig_key, "?").upper()
+            sig_emoji = "✅" if sig == "STRONG" else ("⚠️" if sig == "MODERATE" else "❌")
+            comb = st.get("combined_avg_goals", "?")
+            lines.append(f"   📊 Altenar: comb {comb} goles | señal {sig_emoji} {sig}")
+            lines.append(f"      {p.home}: avg={h.get('avg_goals','?')} U2.5={h.get('u25_pct','?')}% {h.get('form_str','')[:6]}")
+            lines.append(f"      {p.away}: avg={a.get('avg_goals','?')} U2.5={a.get('u25_pct','?')}% {a.get('form_str','')[:6]}")
         lines.append("")
     return "\n".join(lines)
 
